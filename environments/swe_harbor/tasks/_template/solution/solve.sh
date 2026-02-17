@@ -1,9 +1,10 @@
 #!/bin/bash
 # TODO: Write the reference solution.
-# This script runs inside the container at /app.
+# This script runs inside the container at /app against the Healthchecks codebase.
 # It should produce the correct solution that passes all tests.
 #
-# Examples:
-#   - Write a file:  cat > /app/solution.py << 'EOF' ... EOF
-#   - Apply a fix:   sed -i 's/old/new/' /app/file.py
-#   - Run a command: python /app/setup.py
+# Common patterns:
+#   - Append to a file:     cat >> /app/hc/api/models.py << 'EOF' ... EOF
+#   - Patch a file inline:  python3 -c "..." (read, replace, write)
+#   - Run migrations:       cd /app && python manage.py makemigrations api && python manage.py migrate
+#   - Install a package:    pip install some-package
