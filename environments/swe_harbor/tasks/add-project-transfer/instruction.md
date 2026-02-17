@@ -1,16 +1,14 @@
 # Add Check Transfer API
 
-You are working on [Healthchecks](https://github.com/healthchecks/healthchecks), an open-source cron job monitoring service built with Django. The codebase is located at `/app/`.
+The Healthchecks codebase is at `/app/`. It's a Django app for monitoring cron jobs.
 
-## Overview
+## What to build
 
-Add an API endpoint that allows users to **transfer a check from one project to another**. This is a common request from users who reorganize their monitoring setup. The transfer must handle channel reassignment, preserve ping and flip history, and enforce proper authorization.
+Add an API endpoint for transferring a check from one project to another, with a log of past transfers.
 
-## Requirements
+## 1. `TransferLog` model (`/app/hc/api/models.py`)
 
-### 1. Add a `TransferLog` model (`/app/hc/api/models.py`)
-
-Create a new model to record transfer history. Add it after the existing `Flip` model.
+New model (add after the `Flip` model) to record transfer history:
 
 | Field | Type | Details |
 |-------|------|---------|
@@ -19,9 +17,9 @@ Create a new model to record transfer history. Add it after the existing `Flip` 
 | `from_project` | `ForeignKey` to `Project` | `on_delete=models.SET_NULL, null=True, related_name="+"` |
 | `to_project` | `ForeignKey` to `Project` | `on_delete=models.SET_NULL, null=True, related_name="+"` |
 | `created` | `DateTimeField` | `default=now` |
-| `transferred_by` | `CharField` | `max_length=200, blank=True` — records the email of the API key owner |
+| `transferred_by` | `CharField` | `max_length=200, blank=True` — email of the API key owner |
 
-Add a `to_dict()` method that returns:
+Add `to_dict()` returning:
 ```python
 {
     "uuid": str(self.code),
@@ -33,73 +31,72 @@ Add a `to_dict()` method that returns:
 }
 ```
 
-Add `class Meta` with `ordering = ["-created"]`.
+`Meta` class: `ordering = ["-created"]`.
 
-### 2. Create a migration
+## 2. Migration (`/app/hc/api/migrations/`)
 
-Generate a migration: `python manage.py makemigrations api --name transferlog`
+Generate with `python manage.py makemigrations api --name transferlog`.
 
-### 3. Add a `transfer()` method to `Check` (`/app/hc/api/models.py`)
+## 3. `Check.transfer()` method (`/app/hc/api/models.py`)
 
-Add a method `transfer(self, target_project, transferred_by="")` that:
+Add `transfer(self, target_project, transferred_by="")` that does these steps, all inside a `transaction.atomic()` block with `select_for_update()` on the check (same pattern as `ping()` and `lock_and_delete()`):
 
-1. **Validates** the target project has capacity — call `target_project.num_checks_available()` and raise `ValueError("target project has no checks available")` if `<= 0`.
-2. **Records the transfer** — create a `TransferLog` entry with `from_project=self.project`, `to_project=target_project`.
-3. **Moves the check** — update `self.project` to `target_project`.
-4. **Reassigns channels** — clear existing channel assignments (`self.channel_set.clear()`) and assign all channels from the target project (`self.channel_set.set(Channel.objects.filter(project=target_project))`).
-5. **Resets alert state** — set `self.status` to `"new"`, clear `last_start`, `last_ping`, `alert_after`, `last_duration`, set `n_pings` to `0`.
-6. **Cleans up old data** — delete all `Ping` objects for this check, and delete all `Flip` objects for this check.
-7. **Saves** the check.
+1. **Validate capacity** — call `target_project.num_checks_available()`, raise `ValueError("target project has no checks available")` if `<= 0`.
+2. **Log the transfer** — create a `TransferLog` with `from_project=self.project`, `to_project=target_project`.
+3. **Move the check** — set `self.project = target_project`.
+4. **Reassign channels** — `self.channel_set.clear()`, then `self.channel_set.set(Channel.objects.filter(project=target_project))`.
+5. **Reset alert state** — set `status="new"`, clear `last_start`, `last_ping`, `alert_after`, `last_duration`, set `n_pings=0`.
+6. **Clean up old data** — delete all `Ping` and `Flip` objects for this check.
+7. **Save** the check.
 
-The entire operation should be wrapped in `transaction.atomic()` with `select_for_update()` on the check (same pattern as `ping()` and `lock_and_delete()`).
+## 4. API views (`/app/hc/api/views.py`)
 
-### 4. Add API views (`/app/hc/api/views.py`)
+### `POST /api/v3/checks/<uuid:code>/transfer/`
 
-#### `POST /api/v3/checks/<uuid:code>/transfer/` — Transfer a check
+Transfer a check to another project.
 
-- Requires write API key (use `@authorize` decorator)
-- Accepts JSON body with:
+- Use `@authorize` (write key required)
+- JSON body:
   - `project` (required): UUID string of the target project
-  - `target_api_key` (required): write API key for the target project (used to verify authorization)
-- **Authorization rules:**
-  - The `api_key` in the request authenticates the **source** project (handled by the `@authorize` decorator).
-  - A separate `target_api_key` field in the JSON body must match the target project's `api_key` to verify write access to the target project.
-  - Return `403` with `{"error": "not authorized for target project"}` if `target_api_key` is missing or doesn't match the target project's `api_key`
-- **Validation:**
-  - Return `400` with `{"error": "missing project"}` if `project` is not provided
-  - Return `400` with `{"error": "invalid project uuid"}` if `project` is not a valid UUID
-  - Return `404` if the target project doesn't exist
-  - Return `400` with `{"error": "cannot transfer to same project"}` if source == target
-  - Return `400` with `{"error": "target project has no checks available"}` if target is at capacity
-- **On success:** Return the check's `to_dict()` representation with status `200`
+  - `target_api_key` (required): write API key for the target project
+- Authorization:
+  - The request's `api_key` authenticates the source project (handled by `@authorize`)
+  - `target_api_key` in the body must match the target project's `api_key`
+  - `403` with `{"error": "not authorized for target project"}` if missing or wrong
+- Validation:
+  - `400` with `{"error": "missing project"}` if `project` not provided
+  - `400` with `{"error": "invalid project uuid"}` if not a valid UUID
+  - `404` if target project doesn't exist
+  - `400` with `{"error": "cannot transfer to same project"}` if source == target
+  - `400` with `{"error": "target project has no checks available"}` if at capacity
+- On success: return the check's `to_dict()` with status `200`
 
-#### `GET /api/v3/checks/<uuid:code>/transfers/` — List transfer history
+### `GET /api/v3/checks/<uuid:code>/transfers/`
 
-- Requires read API key (use `@authorize_read` decorator)
-- Returns `{"transfers": [...]}` with transfer log entries for this check
-- Returns `403` if check belongs to a different project
-- Returns `404` if check doesn't exist
+List transfer history for a check.
 
-Create a dispatcher view `check_transfer` for the transfer endpoint (POST only) with `@csrf_exempt` and `@cors("POST")`.
+- Use `@authorize_read`
+- Returns `{"transfers": [...]}`
+- `403` if wrong project, `404` if check doesn't exist
 
-Create a separate view `check_transfers` for the transfer history endpoint (GET only) with `@csrf_exempt` and `@cors("GET")`.
+Decorate `check_transfer` with `@cors("POST")`, `@csrf_exempt`, and `@authorize`. Decorate `check_transfers` with `@cors("GET")`, `@csrf_exempt`, and `@authorize_read`.
 
-### 5. Add URL routes (`/app/hc/api/urls.py`)
+## 5. URL routes (`/app/hc/api/urls.py`)
 
-Add URL patterns in the `api_urls` list:
+Add to the `api_urls` list:
 
 ```python
 path("checks/<uuid:code>/transfer/", views.check_transfer, name="hc-api-transfer"),
 path("checks/<uuid:code>/transfers/", views.check_transfers, name="hc-api-transfers"),
 ```
 
-### 6. Update `Check.to_dict()` (`/app/hc/api/models.py`)
+## 6. `Check.to_dict()` (`/app/hc/api/models.py`)
 
-Add a `"transfers_count"` key to the dictionary returned by `Check.to_dict()`. Its value should be the number of `TransferLog` entries for this check (an integer).
+Add `"transfers_count"` (integer) to the dict.
 
 ## Constraints
 
-- Do NOT modify any existing tests
-- The transfer should be atomic — if any step fails, no changes should be committed
-- Follow existing code patterns for decorators, error handling, and JSON responses
-- Import `Project` from `hc.accounts.models` (it's already imported in views.py)
+- Don't modify existing tests
+- The transfer must be atomic — if any step fails, nothing gets committed
+- Follow existing patterns for decorators, error responses, etc.
+- Import `Project` from `hc.accounts.models` (already imported in views.py)

@@ -58,11 +58,11 @@ new = '''    def assign_all_channels(self) -> None:
         Moves the check, reassigns channels, resets alert state, and cleans up
         old data. The entire operation is atomic.
         """
-        if target_project.num_checks_available() <= 0:
-            raise ValueError("target project has no checks available")
-
         with transaction.atomic():
             check = Check.objects.select_for_update().get(id=self.id)
+
+            if target_project.num_checks_available() <= 0:
+                raise ValueError("target project has no checks available")
 
             TransferLog.objects.create(
                 owner=check,

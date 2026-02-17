@@ -75,9 +75,9 @@ class AnnotationModelTestCase(BaseTestCase):
         from hc.api.models import Annotation
         a = Annotation.objects.create(owner=self.check, summary="Test")
         d = a.to_dict()
-        # ISO format without microseconds: no '.' before timezone info
+        # ISO format without microseconds: no '.' in the datetime string
         created_str = d["created"]
-        self.assertNotIn(".", created_str.split("+")[0].split("Z")[0][-7:],
+        self.assertNotIn(".", created_str,
                          "created should not contain microseconds")
 
     def test_annotation_default_detail_is_empty(self):
@@ -312,6 +312,16 @@ class ListAnnotationsApiTestCase(BaseTestCase):
         annotations = r.json()["annotations"]
         self.assertEqual(len(annotations), 1)
         self.assertEqual(annotations[0]["summary"], "Old")
+
+    def test_invalid_start_format(self):
+        """GET with non-ISO start date should return 400."""
+        r = self.get("start=not-a-date")
+        self.assertEqual(r.status_code, 400)
+
+    def test_invalid_end_format(self):
+        """GET with non-ISO end date should return 400."""
+        r = self.get("end=not-a-date")
+        self.assertEqual(r.status_code, 400)
 
     def test_wrong_api_key(self):
         """GET with wrong API key should return 401."""

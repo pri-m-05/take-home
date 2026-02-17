@@ -123,14 +123,14 @@ def list_annotations(request: ApiRequest, code: UUID) -> HttpResponse:
             start_dt = datetime.fromisoformat(start)
             q = q.filter(created__gte=start_dt)
         except ValueError:
-            return HttpResponseBadRequest()
+            return JsonResponse({"error": "invalid date format"}, status=400)
 
     if end := request.GET.get("end"):
         try:
             end_dt = datetime.fromisoformat(end)
             q = q.filter(created__lt=end_dt)
         except ValueError:
-            return HttpResponseBadRequest()
+            return JsonResponse({"error": "invalid date format"}, status=400)
 
     return JsonResponse({"annotations": [a.to_dict() for a in q]})
 

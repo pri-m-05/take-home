@@ -1,15 +1,15 @@
 # Traverse: SWE Harbor Take-Home Assignment
 
-## Codebase Landscape
+## Repo Structure
 
-This repository is a fork of [Verifiers](https://github.com/PrimeIntellect-ai/verifiers), a framework by Prime Intellect for training and evaluating AI coding agents with reinforcement learning. The top-level structure:
+This repo is a fork of [Verifiers](https://github.com/PrimeIntellect-ai/verifiers), Prime Intellect's framework for training and evaluating AI coding agents with RL. Here's the layout:
 
 ```
 take-home/
-├── verifiers/              # The core Verifiers framework (library code — don't modify)
-│   ├── envs/               # Built-in environment types (SingleTurnEnv, HarborEnv, etc.)
+├── verifiers/              # Core Verifiers framework (don't modify)
+│   ├── envs/               # Built-in environment types
 │   ├── rubrics/            # Reward/scoring infrastructure
-│   ├── rl/                 # Reinforcement learning trainers
+│   ├── rl/                 # RL trainers
 │   └── ...
 ├── environments/
 │   └── swe_harbor/         # ← YOUR WORKING DIRECTORY
@@ -20,118 +20,113 @@ take-home/
 │       │   └── app/        # Healthchecks codebase (pinned at v3.6)
 │       └── tasks/          # ← Where you create tasks
 │           ├── _template/                # Starter template to copy
-│           ├── add-check-annotations/    # Example: add feature (annotations)
-│           └── add-project-transfer/     # Example: add feature (check transfer)
+│           ├── add-check-annotations/    # Example task
+│           └── add-project-transfer/     # Example task
 └── README.md               # ← You are here
 ```
 
 You only need to work inside `environments/swe_harbor/tasks/`. Everything else is supporting infrastructure.
 
-## The Shared Codebase
+## Shared Codebase
 
-All tasks operate against a **single shared codebase**: [Healthchecks](https://github.com/healthchecks/healthchecks) (v3.6), an open-source cron job monitoring service built with Python/Django.
+All tasks run against the same codebase: [Healthchecks](https://github.com/healthchecks/healthchecks) (v3.6), an open-source cron job monitoring service written in Python/Django.
 
-The codebase lives in `environment/app/` and is baked into a single Docker image that all tasks share. Tasks are lightweight — just instruction + solution + tests — with no per-task `environment/` directory.
+The codebase lives in `environment/app/` and gets baked into a Docker image that all tasks share. Tasks themselves are lightweight (just instruction + solution + tests).
 
-## The Environment
+## How It Works
 
-**SweHarborEnv** (`environments/swe_harbor/swe_harbor.py`) is a Harbor-format environment that evaluates AI coding agents. Here's what happens when a task runs:
+**SweHarborEnv** (`environments/swe_harbor/swe_harbor.py`) is the Harbor-format environment that runs tasks. The flow:
 
-1. The framework builds and starts a Docker container from the **shared** `environment/Dockerfile`.
-2. The task instruction (`instruction.md`) is mounted at `/task/instruction.md` inside the container.
-3. A tool-use agent script is uploaded into the container. The agent has four tools: `bash`, `read_file`, `write_file`, and `str_replace`. It reads the instruction and works to solve the task.
-4. When the agent finishes (or times out), `tests/test.sh` runs inside the container.
-5. The test runner executes `test_solution.py` with pytest and writes a reward — `1` (all tests pass) or `0` (any test fails) — to `/logs/verifier/reward.txt`.
+1. A Docker container starts from the shared `environment/Dockerfile`.
+2. `instruction.md` is mounted into the container.
+3. An agent script runs inside the container with tools for bash, reading/writing files, and string replacement. It reads the instruction and attempts to solve the task.
+4. When the agent finishes (or times out), `tests/test.sh` runs.
+5. pytest executes `test_solution.py` and writes `1` (all pass) or `0` (any fail) to `/logs/verifier/reward.txt`.
 
-The agent never sees the tests. It only sees `instruction.md`.
+The agent only sees `instruction.md`. It never sees the tests.
 
 ## Your Task
 
-Create **1-2 original software engineering tasks** in Harbor format. Place each task in its own directory under `environments/swe_harbor/tasks/`.
+Create **1-2 original software engineering tasks** in Harbor format under `environments/swe_harbor/tasks/`.
 
-Each task directory must contain these files:
+Each task directory needs:
 
 | File | Purpose |
 |------|---------|
-| `task.toml` | Task metadata — difficulty level, timeouts |
+| `task.toml` | Metadata (difficulty, timeouts) |
 | `instruction.md` | The problem statement the agent sees |
-| `solution/solve.sh` | Reference solution — a bash script that produces the correct answer |
-| `tests/test_solution.py` | Pytest test cases that verify correctness |
-| `tests/test.sh` | Test runner that executes pytest and writes the reward file |
+| `solution/solve.sh` | Reference solution script |
+| `tests/test_solution.py` | Pytest test cases |
+| `tests/test.sh` | Test runner (writes reward file) |
 
 **Requirements:**
 
-1. The reference solution (`solve.sh`) must pass all tests (reward = 1)
-2. Tests must **fail** without the solution applied (reward = 0)
-3. Tests should catch incorrect or incomplete solutions, not just the happy path
-4. At least one task should involve **multiple files**
+1. `solve.sh` must pass all tests (reward = 1)
+2. Tests must fail without the solution applied (reward = 0)
+3. Tests should catch incorrect/incomplete solutions, not just the happy path
+4. At least one task should touch multiple files
 
 ### Getting Started
 
-1. **Fork this repo** — click "Fork" on GitHub, then clone your fork
-2. **Study the examples** — `environments/swe_harbor/tasks/add-check-annotations/` and `environments/swe_harbor/tasks/add-project-transfer/` are the best references for the kind of complexity we're looking for
-3. **Browse the Healthchecks codebase** — explore `environments/swe_harbor/environment/app/hc/` to find areas for tasks. See the [Healthchecks GitHub](https://github.com/healthchecks/healthchecks) for documentation
-4. **Copy the template** — `cp -r environments/swe_harbor/tasks/_template environments/swe_harbor/tasks/your-task-name`
-5. **Fill in each file** — follow the TODO comments in the template
-6. **Test locally** — verify your task end-to-end with Docker (see below)
+1. **Fork this repo** and clone your fork
+2. **Look at the examples** in `environments/swe_harbor/tasks/add-check-annotations/` and `add-project-transfer/`
+3. **Explore the Healthchecks codebase** at `environments/swe_harbor/environment/app/hc/`
+4. **Copy the template**: `cp -r environments/swe_harbor/tasks/_template environments/swe_harbor/tasks/your-task-name`
+5. **Fill in each file** following the TODO comments
+6. **Test with Docker** (see below)
 
 ### Task Design Guidelines
 
-We're building tasks to evaluate **long-horizon agent capabilities** — multi-step problems that require planning, navigating multiple files, and composing several pieces of work together. Think of tasks that a junior engineer might spend a day on, not something solved in a single function.
+We want tasks that test multi-step problem solving: planning, reading across files, and composing changes that depend on each other. Think "what would take a junior engineer a day", not "write a single function".
 
-**Good task types:**
+Good task types:
+- Add a feature (new model + API endpoint + URL routes + tests)
+- Debug across files (multiple interacting bugs)
+- Extend an existing system with non-trivial new behavior
+- Refactor + fix + extend combos
 
-| Type | Example |
-|------|---------|
-| Add a feature | New API endpoint with model, view, URL, and tests |
-| Debug across a codebase | Multiple bugs spread across files that interact with each other |
-| Extend an existing system | Add significant new features to the Healthchecks app |
-| Refactor + fix + extend | Combination tasks that require understanding before changing |
+What to aim for:
+- The agent needs to touch 3+ files
+- Changes in one file affect correctness in another
+- Can't be solved by just writing code linearly without reading what's already there
+- Partial solutions are possible but won't pass all tests
+- 20-40 tests with good edge case coverage
 
-**What makes a good long-horizon task:**
+Avoid:
+- Leetcode-style puzzles
+- Anything needing internet access (containers are isolated)
+- Subjective tasks with no clear pass/fail
+- Tests so loose the agent can stumble into passing
+- Single-function tasks
 
-- **Multiple files** — the agent must create or modify 3+ files
-- **Interdependencies** — changes in one file affect the correctness of another
-- **Planning required** — the agent can't just bang out code linearly; it needs to reason about structure
-- **Realistic complexity** — resembles real engineering work, not toy problems
-- **Incremental progress** — partial solutions are possible but won't pass all tests
-
-**Avoid:**
-
-- Leetcode/competitive programming puzzles
-- Tasks requiring internet access (containers are isolated)
-- Subjective tasks with no deterministic pass/fail
-- Trivially passable tests (agent should not be able to stumble into a solution)
-- Single-function tasks that don't require multi-step reasoning
-
-**Scope:** Tasks should be **hard enough that current frontier models don't trivially solve them**. Aim for problems that require 1-2 hours of focused work from a skilled engineer — multiple implementation steps, cross-file coordination, and meaningful test coverage (~20-40 tests).
+**Scope:** Hard enough that current frontier models can't trivially solve them. Think 1-2 hours of focused engineering work.
 
 ## Running the Environment
 
 ### Prerequisites
 
-- **Docker** — must be installed and running
-- **`OPENROUTER_API_KEY`** — only needed for full framework runs (not Docker-only quick verification). Copy `.env.example` to `.env` and fill in your key:
+- **Docker** installed and running
+- **`OPENROUTER_API_KEY`** (only for full framework runs, not needed for Docker-only testing):
   ```bash
   cp environments/swe_harbor/.env.example environments/swe_harbor/.env
-  # then edit .env with your OpenRouter API key
+  # edit .env with your OpenRouter API key
   ```
 
 ### Quick Verification (Docker Only)
 
-The fastest way to test a task. Run these commands from the `environments/swe_harbor/` directory.
+Run from `environments/swe_harbor/`:
 
 ```bash
 cd environments/swe_harbor
 ```
 
-**Step 1: Build the shared Docker image (once)**
+**Build the image (once):**
 
 ```bash
 docker build -t swe-harbor environment/
 ```
 
-**Step 2: Run with your solution (expect reward = `1`)**
+**Run with solution (should print `1`):**
 
 ```bash
 docker run --rm \
@@ -141,7 +136,7 @@ docker run --rm \
     bash -c "mkdir -p /logs/verifier && cd /app && bash /solution/solve.sh && bash /tests/test.sh && cat /logs/verifier/reward.txt"
 ```
 
-**Step 3: Run without your solution (expect reward = `0`)**
+**Run without solution (should print `0`):**
 
 ```bash
 docker run --rm \
@@ -150,12 +145,11 @@ docker run --rm \
     bash -c "mkdir -p /logs/verifier && bash /tests/test.sh && cat /logs/verifier/reward.txt"
 ```
 
-If Step 2 prints `1` and Step 3 prints `0`, your task works correctly. If both print `1`, your tests aren't actually checking the solution.
+If the first prints `1` and the second prints `0`, your task works. If both print `1`, your tests aren't checking anything.
 
-**Concrete example** using the included `add-check-annotations` task:
+**Example with `add-check-annotations`:**
 
 ```bash
-# Build the shared image
 docker build -t swe-harbor environment/
 
 # With solution (should print 1)
@@ -174,23 +168,19 @@ docker run --rm \
 
 ### Full Framework Run (Optional)
 
-To run tasks through the full Verifiers pipeline with an actual AI agent, you need additional setup.
-
-**Install dependencies:**
+To run through the actual Verifiers pipeline with an AI agent:
 
 ```bash
-# From the repo root
+# From repo root
 uv add verifiers
 prime env install swe_harbor --path ./environments/swe_harbor
 ```
 
-**Run an evaluation:**
+Then run an eval:
 
 ```bash
 prime eval run swe_harbor -m gpt-4
 ```
-
-This spins up the full agent loop: the model reads `instruction.md`, uses its tools to solve the task, and then tests are run automatically.
 
 ## Harbor Format Reference
 
@@ -213,26 +203,19 @@ timeout_sec = 180.0        # Max time for test execution
 timeout_sec = 900.0        # Max time for the agent to work
 ```
 
-Note: no `[environment]` section is needed — the shared Docker image is used for all tasks.
+No `[environment]` section needed since all tasks share the same Docker image.
 
 ### `instruction.md`
 
-The problem statement the agent receives. Be specific about:
-
-- What files to create or modify (paths under `/app/`)
-- Expected function signatures, class interfaces, or API behavior
-- Input/output examples where helpful
-- Constraints or requirements
-
-The agent works against the Healthchecks codebase at `/app/`.
+The problem statement the agent receives. Be specific about what files to modify, expected signatures/behavior, and constraints. The agent works against the Healthchecks codebase at `/app/`.
 
 ### `solution/solve.sh`
 
-A bash script that produces the correct solution. Runs inside the container at `/app`. It can write files (using heredocs), apply patches (with Python or `sed`), run migrations, or run commands. Must be deterministic and pass all tests.
+A bash script that produces the correct solution. Runs inside the container at `/app`. Can write files, apply patches, run migrations, etc. Must be deterministic.
 
 ### `tests/test.sh`
 
-Entry point for test execution. Standard pattern:
+Standard pattern:
 
 ```bash
 #!/bin/bash
@@ -251,8 +234,6 @@ else
 fi
 ```
 
-Must write `1` (pass) or `0` (fail) to `/logs/verifier/reward.txt`.
-
 ### `tests/test_solution.py`
 
-Standard pytest test file using Django's test infrastructure. Extend `BaseTestCase` from `hc.test` for pre-built users, projects, and API keys. Test the happy path, edge cases, and error conditions. Keep tests independent with no shared mutable state. Aim for 20-40 tests.
+Pytest file using Django's test infrastructure. Extend `BaseTestCase` from `hc.test` for pre-built users, projects, and API keys. Aim for 20-40 tests covering happy paths, edge cases, and error conditions.
