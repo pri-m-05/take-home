@@ -37,7 +37,13 @@ class SweHarborEnv(HarborEnv):
         )
 
     async def build_env_vars(self, state: vf.State) -> dict[str, str]:
-        """Configure the OpenAI SDK inside the container to use OpenRouter."""
+        """Configure the OpenAI SDK inside the container.
+
+        When running on Prime Intellect infra, the parent class hard-sets
+        OPENAI_BASE_URL to the interception proxy and OPENAI_MODEL from
+        state, so the defaults below only apply for standalone/local runs
+        (where we fall back to OpenRouter).
+        """
         import os
 
         env_vars = await super().build_env_vars(state)
@@ -46,7 +52,7 @@ class SweHarborEnv(HarborEnv):
         )
         env_vars.setdefault(
             "OPENAI_API_KEY",
-            os.environ.get("OPENROUTER_API_KEY", ""),
+            os.environ.get("OPENROUTER_API_KEY", "sk-placeholder"),
         )
         return env_vars
 
@@ -93,7 +99,7 @@ import sys
 from openai import OpenAI
 
 MAX_TURNS = 50
-MODEL = os.environ.get("OPENAI_MODEL", "openai/gpt-4o")
+MODEL = os.environ.get("OPENAI_MODEL", "openai/gpt-4o")  # OpenRouter format; overridden by infra
 
 SYSTEM_PROMPT = (
     "You are a skilled software engineer. You have access to tools for running "

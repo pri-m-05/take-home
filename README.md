@@ -1,3 +1,5 @@
+> **Take-Home Assignment?** Go to [`environments/swe_harbor/README.md`](environments/swe_harbor/README.md) — that directory has everything you need.
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: light)" srcset="https://github.com/user-attachments/assets/40c36e38-c5bd-4c5a-9cb3-f7b902cd155d">

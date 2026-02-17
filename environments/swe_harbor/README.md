@@ -97,6 +97,11 @@ See `RUBRIC.md` for the full evaluation criteria.
 ### Prerequisites
 
 - **Docker** — must be installed and running
+- **`OPENROUTER_API_KEY`** — only needed for full framework runs (not Docker-only quick verification). Copy `.env.example` to `.env` and fill in your key:
+  ```bash
+  cp .env.example .env
+  # then edit .env with your OpenRouter API key
+  ```
 
 ### Quick Verification (Docker Only)
 
