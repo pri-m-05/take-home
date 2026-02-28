@@ -69,6 +69,7 @@ api_urls = [
     path("metrics/", views.metrics),
     path("status/", views.status),
     path("bounces/", views.bounces),
+    path("project/rotate_readonly_key/", views.rotate_readonly_key),
 ]
 
 urlpatterns = [

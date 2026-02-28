@@ -459,6 +459,15 @@ class Project(models.Model):
     def checks_url(self, full: bool = True) -> str:
         result = reverse("hc-checks", args=[self.code])
         return settings.SITE_ROOT + result if full else result
+    
+    def rotate_readonly_key(self) -> str:
+        while True:
+            candidate = token_urlsafe(24)
+            if len(candidate) == 32 and candidate != self.api_key:
+                self.api_key_readonly = candidate
+                self.save(update_fields=["api_key_readonly"])
+                return candidate
+
 
     def get_absolute_url(self) -> str:
         return self.checks_url(full=False)

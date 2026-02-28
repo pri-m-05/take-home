@@ -556,6 +556,13 @@ def resume(request: ApiRequest, code: UUID) -> HttpResponse:
 
     return JsonResponse(check.to_dict(v=request.v))
 
+@cors("POST")
+@csrf_exempt
+@authorize
+def rotate_readonly_key(request: ApiRequest) -> HttpResponse:
+    new_key = request.project.rotate_readonly_key()
+    return JsonResponse({"api_key_readonly": new_key})
+
 
 @cors("GET")
 @csrf_exempt
